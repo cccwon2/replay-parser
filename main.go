@@ -14,12 +14,19 @@ import (
 )
 
 func main() {
-	r := gin.Default()
+	// Gin을 release 모드로 설정 (프로덕션 환경에 적합)
+	gin.SetMode(gin.ReleaseMode)
 
-	// 모든 도메인에서 CORS 허용
+	// Gin 엔진 생성 및 CORS 설정
+	r := gin.Default()
 	r.Use(cors.Default())
 
+	// 신뢰할 프록시 IP 설정 (모든 프록시 신뢰 비활성화)
+	// 여기서는 프록시 설정을 빈 리스트로 설정 (추후 필요시 프록시 IP 추가 가능)
+	r.SetTrustedProxies(nil)
+
 	r.POST("/analyze", func(c *gin.Context) {
+		// 파일을 form-data에서 가져옴
 		file, err := c.FormFile("file")
 		if err != nil {
 			log.Printf("File upload error: %v\n", err)
@@ -28,7 +35,7 @@ func main() {
 		}
 		log.Printf("Received file: %s\n", file.Filename)
 
-		// 업로드된 파일 열기
+		// 파일 열기
 		f, err := file.Open()
 		if err != nil {
 			log.Printf("Error opening file: %v\n", err)
@@ -75,7 +82,7 @@ func main() {
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Build %s", action.Unit.String()),
-					"type": "Build",
+					"type":   "Build",
 				}
 				buildOrders = append(buildOrders, buildOrder)
 
@@ -85,42 +92,47 @@ func main() {
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Train %s", action.Unit.String()),
-					"type": "Train",
+					"type":   "Train",
 				}
 				buildOrders = append(buildOrders, buildOrder)
+
 			case *repcmd.BuildingMorphCmd:
 				// 건물 변형 이벤트
 				buildOrder := gin.H{
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Morph Building to %s", action.Unit.String()),
-					"type": "BuildingMorph",
+					"type":   "BuildingMorph",
 				}
 				buildOrders = append(buildOrders, buildOrder)
+
 			case *repcmd.CancelTrainCmd:
+				// 유닛 훈련 취소 이벤트
 				buildOrder := gin.H{
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Cancel Train Unit (Tag: %x)", action.UnitTag),
-					"type": "CancelTrain",
+					"type":   "CancelTrain",
 				}
 				buildOrders = append(buildOrders, buildOrder)
 
 			case *repcmd.UpgradeCmd:
+				// 업그레이드 시작 이벤트
 				buildOrder := gin.H{
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Start Upgrade: %s", action.Upgrade.String()),
-					"type": "Upgrade",
+					"type":   "Upgrade",
 				}
 				buildOrders = append(buildOrders, buildOrder)
 
 			case *repcmd.TechCmd:
+				// 기술 연구 이벤트
 				buildOrder := gin.H{
 					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
 					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
 					"action": fmt.Sprintf("Research Tech: %s", action.Tech.String()),
-					"type": "Tech",
+					"type":   "Tech",
 				}
 				buildOrders = append(buildOrders, buildOrder)
 			}
@@ -130,12 +142,13 @@ func main() {
 		result := gin.H{
 			"gameVersion": replay.Header.Version,
 			"mapName":     replay.Header.Map,
-			"players":      replay.Header.Players,
-			"buildOrders": buildOrders, // 실제 빌드 오더 정보 추가
+			"players":     replay.Header.Players,
+			"buildOrders": buildOrders,
 		}
 
 		c.JSON(http.StatusOK, result)
 	})
 
-	r.Run(":9090") // Go 서버는 9090 포트에서 실행
+	// 서버 실행
+	r.Run(":9090")
 }
