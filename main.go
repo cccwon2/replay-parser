@@ -137,5 +137,5 @@ func main() {
 		c.JSON(http.StatusOK, result)
 	})
 
-	r.Run(":8080") // Go 서버는 8080 포트에서 실행
+	r.Run(":9090") // Go 서버는 9090 포트에서 실행
 }
