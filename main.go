@@ -70,10 +70,10 @@ func main() {
 			return
 		}
 
-		// 빌드 오더 추출
-		var buildOrders []gin.H
+		// 게임 이벤트 추출
+		var gameEvents []gin.H
 
-		// 명령에서 유닛 생성 및 건물 건설 이벤트를 추출
+		// 명령에서 모든 종류의 게임 내 이벤트를 추출
 		for _, cmd := range replay.Commands.Cmds {
 			switch action := cmd.(type) {
 			case *repcmd.BuildCmd:
@@ -84,7 +84,7 @@ func main() {
 					"action": fmt.Sprintf("Build %s", action.Unit.String()),
 					"type":   "Build",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
 
 			case *repcmd.TrainCmd:
 				// 유닛 생성 이벤트
@@ -94,7 +94,7 @@ func main() {
 					"action": fmt.Sprintf("Train %s", action.Unit.String()),
 					"type":   "Train",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
 
 			case *repcmd.BuildingMorphCmd:
 				// 건물 변형 이벤트
@@ -104,7 +104,7 @@ func main() {
 					"action": fmt.Sprintf("Morph Building to %s", action.Unit.String()),
 					"type":   "BuildingMorph",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
 
 			case *repcmd.CancelTrainCmd:
 				// 유닛 훈련 취소 이벤트
@@ -114,7 +114,7 @@ func main() {
 					"action": fmt.Sprintf("Cancel Train Unit (Tag: %x)", action.UnitTag),
 					"type":   "CancelTrain",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
 
 			case *repcmd.UpgradeCmd:
 				// 업그레이드 시작 이벤트
@@ -124,7 +124,7 @@ func main() {
 					"action": fmt.Sprintf("Start Upgrade: %s", action.Upgrade.String()),
 					"type":   "Upgrade",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
 
 			case *repcmd.TechCmd:
 				// 기술 연구 이벤트
@@ -134,8 +134,71 @@ func main() {
 					"action": fmt.Sprintf("Research Tech: %s", action.Tech.String()),
 					"type":   "Tech",
 				}
-				buildOrders = append(buildOrders, buildOrder)
+				gameEvents = append(gameEvents, buildOrder)
+
+			case *repcmd.TargetedOrderCmd:
+				// 유닛 명령 이벤트
+				orderType := repcmd.OrderByID(byte(action.Order.ID))
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Order: %s", orderType.String()),
+					"type":   "Order",
+				}
+				gameEvents = append(gameEvents, buildOrder)
+
+			case *repcmd.HotkeyCmd:
+				// 핫키 이벤트
+				hotkeyType := repcmd.HotkeyTypeByID(action.HotkeyType.ID)
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Hotkey: %s (Group: %d)", hotkeyType.String(), action.Group),
+					"type":   "Hotkey",
+				}
+				gameEvents = append(gameEvents, buildOrder)
+
+			case *repcmd.SelectCmd:
+				// 유닛 선택 이벤트
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Select %d units", len(action.UnitTags)),
+					"type":   "Select",
+				}
+				gameEvents = append(gameEvents, buildOrder)
+
+			case *repcmd.LandCmd:
+				// 건물 착륙 이벤트
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Land %s at (%d, %d)", action.Unit.String(), action.Pos.X, action.Pos.Y),
+					"type":   "Land",
+				}
+				gameEvents = append(gameEvents, buildOrder)
+			
+			case *repcmd.LiftOffCmd:
+				// 건물 이륙 이벤트
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Lift Off at (%d, %d)", action.Pos.X, action.Pos.Y),
+					"type":   "LiftOff",
+				}
+				gameEvents = append(gameEvents, buildOrder)
+			
+			case *repcmd.ChatCmd:
+				// 채팅 이벤트
+				buildOrder := gin.H{
+					"time":   fmt.Sprintf("%d:%02d", action.BaseCmd().Frame/1500, (action.BaseCmd().Frame/25)%60),
+					"player": replay.Header.PIDPlayers[action.BaseCmd().PlayerID].Name,
+					"action": fmt.Sprintf("Chat: %s", action.Message),
+					"type":   "Chat",
+				}
+				gameEvents = append(gameEvents, buildOrder)
 			}
+			
 		}
 
 		// 분석 결과 반환
@@ -143,7 +206,7 @@ func main() {
 			"gameVersion": replay.Header.Version,
 			"mapName":     replay.Header.Map,
 			"players":     replay.Header.Players,
-			"buildOrders": buildOrders,
+			"gameEvents": gameEvents,
 		}
 
 		c.JSON(http.StatusOK, result)
